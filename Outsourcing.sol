@@ -29,14 +29,13 @@ interface IERC20 {
  * @dev Implements create job process along with transfer 25% of budget to project manager
  */
 contract Outsourcing {
-    //address constant private WETH = 0x19bFB4C85746bCaafC64d80c509409fDE7657b2f;
     address private projectManager;
     uint256 public rateJava;
     uint256 public ratePython;
     uint256 _cancel_fee = 5;
     uint256 _milestone_charge = 25;
     uint256 _margin = 20;
-    address constant private WETH = 0xE0543B8fd7c18ac3EeF78c45f7d222De3bc74dEd;
+    address constant private WETH = 0xd9145CCE52D386f254917e481eB44e9943F39138;
 
     enum Language { JAVA, PYTHON }
     enum JobStatus { 
@@ -62,8 +61,6 @@ contract Outsourcing {
     address[] private clientList;
     string[] private projectList;
     
-    
-    // Struct develop => enum, lang, rate, name -> condition rate < manday rate && not dupplicate
     struct Developer {
         address addr;
         string name;
@@ -73,7 +70,6 @@ contract Outsourcing {
         bool registered;
     }
 
-    // Struct client => company name, name, role -> condition rate < manday rate && not dupplicate
     struct Client {
         address addr;
         string name;
@@ -118,24 +114,12 @@ contract Outsourcing {
         Client memory tmpClient = clients[_addr];
         require(tmpClient.registered == false, "Your address already registered.");
         _;
-
-        // Client memory temp = clients[_addr];
-        // bytes memory tempEmptyStringTest = bytes(temp.company); // Uses memory
-        
-        // require(tempEmptyStringTest.length == 0, "Your address already registered.");
-        // _;
     }
 
     modifier isDeveloperExisting(address _addr) {
         Developer memory tmpDeveloper = developers[_addr];
         require(tmpDeveloper.registered == false, "Your address already registered.");
         _;
-
-        // Developer memory temp = developers[_addr];
-        // bytes memory tempEmptyStringTest = bytes(temp.name); // Uses memory
-        
-        // require(tempEmptyStringTest.length == 0, "Your address already registered.");
-        // _;
     }
 
     /**
@@ -231,12 +215,13 @@ contract Outsourcing {
 
         // Cal over budget developers
         uint256 totalBudgetDevelopers = 0;
-        for (uint i = 0; i < _developers.length; i++) {
+        uint totalDeveloper = _developers.length;
+        for (uint i = 0; i < totalDeveloper; i++) {
             Developer memory dev = developers[_developers[i]];
             uint256 rate_dev = dev.rate;
-            totalBudgetDevelopers += (_mandays * rate_dev);
+            totalBudgetDevelopers += (_mandays / totalDeveloper * rate_dev);
         }
-        require((budget - totalBudgetDevelopers) > (budget * (_margin/100)), "Invalid budget margin!!!");
+        require((budget - totalBudgetDevelopers) > (budget * _margin / 100), "Invalid budget margin!!!");
 
         Project storage data = ticket[ticketId];
         data.ticketId = ticketId;
@@ -276,6 +261,7 @@ contract Outsourcing {
         Project storage data = ticket[ticketId];
         JobStatus currentStatus = data.status;
         uint256 _budget = data.budget;
+        uint256 mandays = data.mandays;
                 
         if (_status == JobStatus.APPROVED) {
             // action role : Client
@@ -375,46 +361,77 @@ contract Outsourcing {
             require(currentStatus == JobStatus.CLIENT_ACCEPT_DELIVERY_COMPLETE, "Invalid job status!");
             require(msg.sender == projectManager, "Project manager only!!!");
 
-            for (uint i = 0; i < data.listDevelopers.length; i++) {
+            //uint256 totalPayDev = 0;
+            uint256 totalDeveloper = data.listDevelopers.length;
+            for (uint i = 0; i < totalDeveloper; i++) {
                 Developer storage dev = developers[data.listDevelopers[i]];
                 // set available
                 dev.available = true;
 
                 // pay to developer
-                uint256 totalIncome = data.mandays * dev.rate;
-                //IERC20(WETH).transfer(dev.addr, totalIncome);
+                uint256 totalIncome = mandays * dev.rate / totalDeveloper;
+                //totalPayDev = totalPayDev + totalIncome;
+                
                 IERC20(WETH).transferFrom(msg.sender, dev.addr, totalIncome); 
             }
             // set closed ticket
             data.closed = true;
         }
 
-        if (_status == JobStatus.CANCEL) {
+        if (currentStatus == JobStatus.SUBMITTED && _status == JobStatus.CANCEL) {
+            // action role : Client
+            require(currentStatus < JobStatus.COMPLETE, "Invalid job status!");
+            require(data.client == msg.sender || msg.sender == projectManager, "Invalid role!!!");
+
+            uint256 totalDeveloper = data.listDevelopers.length;
+            for (uint i = 0; i < totalDeveloper; i++) {
+                Developer storage dev = developers[data.listDevelopers[i]];
+
+                // set available
+                dev.available = true;
+            }
+
+            // set closed ticket
+            data.closed = true;
+        } else if (_status == JobStatus.CANCEL) {
             // action role : Client
             require(currentStatus < JobStatus.COMPLETE, "Invalid job status!");
             require(data.client == msg.sender, "Client only!!!");
 
-            // return currentBudget - fee from weth to client
-            
-            uint256 remainingBudget = _budget - data.paidAmount;
-            uint256 fee = remainingBudget * _cancel_fee / 100;
+            uint256 fee = _budget * _cancel_fee / 100;
+            uint256 paid = data.paidAmount;
+            uint256 remainingBudget = _budget - paid;
             uint256 returnClientBalance = remainingBudget - fee;
 
-            IERC20(WETH).transfer(msg.sender, returnClientBalance);
-
-            // Transfer fee to PM
-            IERC20(WETH).transfer(projectManager, fee);
-
-            for (uint i = 0; i < data.listDevelopers.length; i++) {
+            uint256 totalPayDev = 0;
+            uint256 totalDeveloper = data.listDevelopers.length;
+            for (uint i = 0; i < totalDeveloper; i++) {
                 Developer storage dev = developers[data.listDevelopers[i]];
-                
+                uint256 dev_rate = dev.rate;
+                uint256 fee_dev = mandays * dev_rate * _cancel_fee / 100 / totalDeveloper ;
+
+                totalPayDev = totalPayDev + fee_dev;
+
                 // set available
                 dev.available = true;
 
-                // Pay to developers
-                //uint256 totalIncome = data.mandays * dev.rate;
-                //IERC20(WETH).transfer(dev.addr, totalIncome);
+                // Client pay fee to developer
+                IERC20(WETH).transfer(dev.addr, fee_dev);
+
+                // Cal income for developer -> dev_rate * _budget / paid * _milestone_charge / 100 / totalDeveloper;
+                uint256 totalIncome = dev_rate * _budget / paid * _milestone_charge / 100;
+                
+                // PM pay income to developer
+                IERC20(WETH).transferFrom(projectManager, dev.addr, totalIncome / totalDeveloper); 
             }
+
+            // Transfer fee to PM
+            uint256 fee_PM = fee - totalPayDev;
+            IERC20(WETH).transfer(projectManager, fee_PM);
+
+            // return currentBudget - fee from weth to client
+            IERC20(WETH).transfer(msg.sender, returnClientBalance);
+
             // set closed ticket
             data.closed = true;
         }
@@ -444,6 +461,7 @@ contract Outsourcing {
     function getCancelFee() public view returns (uint256) {
         return _cancel_fee;
     }
+
     function getMilestoneChage() public view returns (uint256) {
         return _milestone_charge;
     }
