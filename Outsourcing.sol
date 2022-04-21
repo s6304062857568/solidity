@@ -26,7 +26,7 @@ interface IERC20 {
 
 /** 
  * @title OutsourcingContract
- * @dev Implements create job process along with transfer 25% of budget to project manager
+ * @dev Implements create job process along with transfer budget to developers and project manager
  */
 contract Outsourcing {
     address private projectManager;
@@ -35,7 +35,7 @@ contract Outsourcing {
     uint256 _cancel_fee = 5;
     uint256 _milestone_charge = 25;
     uint256 _margin = 20;
-    address constant private WETH = 0xd9145CCE52D386f254917e481eB44e9943F39138;
+    address constant private WETH = 0x0A46cf2f88a453691F6289059bBC4d42928f0f1D;
 
     enum Language { JAVA, PYTHON }
     enum JobStatus { 
@@ -219,7 +219,8 @@ contract Outsourcing {
         for (uint i = 0; i < totalDeveloper; i++) {
             Developer memory dev = developers[_developers[i]];
             uint256 rate_dev = dev.rate;
-            totalBudgetDevelopers += (_mandays / totalDeveloper * rate_dev);
+            uint256 dev_budget = rate_dev * _mandays / totalDeveloper;
+            totalBudgetDevelopers = totalBudgetDevelopers + dev_budget;
         }
         require((budget - totalBudgetDevelopers) > (budget * _margin / 100), "Invalid budget margin!!!");
 
