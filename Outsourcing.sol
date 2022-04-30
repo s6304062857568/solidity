@@ -35,7 +35,7 @@ contract Outsourcing {
     uint256 _cancel_fee = 5;
     uint256 _milestone_charge = 25;
     uint256 _margin = 20;
-    address constant private WETH = 0x0A46cf2f88a453691F6289059bBC4d42928f0f1D;
+    address constant private WETH = 0xDA0bab807633f07f013f94DD0E6A4F96F8742B53;
 
     enum Language { JAVA, PYTHON }
     enum JobStatus { 
@@ -127,6 +127,8 @@ contract Outsourcing {
      */
     constructor() {
         projectManager = msg.sender; // 'msg.sender' is sender of current call, contract deployer for a constructor
+        rateJava = 40000000000000000;
+        ratePython = 30000000000000000;
         emit OwnerSet(address(0), projectManager);
     }
 
@@ -135,8 +137,8 @@ contract Outsourcing {
      * @param newOwner address of new owner
      */
     function changeOwner(address newOwner) public isOwner {
-        emit OwnerSet(projectManager, newOwner);
         projectManager = newOwner;
+        emit OwnerSet(projectManager, newOwner);
     }
 
     /**
@@ -230,6 +232,7 @@ contract Outsourcing {
         data.status = JobStatus.SUBMITTED;
         data.client = client;
         data.listDevelopers = _developers;
+
         // initial developers
         for (uint i = 0; i < _developers.length; i++) {
             require(bytes(developers[_developers[i]].name).length > 0, "The developers aren't registered.");
@@ -452,11 +455,59 @@ contract Outsourcing {
     }
 
     function getDevelopers() public view returns (address[] memory) {
-        return developerList;
+        //https://stackoverflow.com/questions/60616895/solidity-returns-filtered-array-of-structs-without-push
+        uint256 resultCount = 0;
+        for (uint i = 0; i < developerList.length; i++) {
+            if (developerList[i] == msg.sender || projectManager == msg.sender) {
+                resultCount++;  // step 1 - determine the result count
+            }
+        }
+
+        address[] memory result = new address[](resultCount);  // step 2 - create the fixed-length array
+        uint256 j = 0;
+        for (uint i = 0; i < developerList.length; i++) {
+            if (developerList[i] == msg.sender || projectManager == msg.sender) {
+                result[j] = developerList[i];  // step 3 - fill the array
+                j++;
+            }
+        }
+
+        return result; // step 4 - return
+    }
+
+    function getDeveloperInProject(string memory ticketId) public view returns (address[] memory) {
+        require(ticket[ticketId].budget > 0, "The ticket does not exist.");
+        Project storage project = ticket[ticketId];
+
+        //https://stackoverflow.com/questions/60616895/solidity-returns-filtered-array-of-structs-without-push
+        address[] memory result = new address[](project.listDevelopers.length);  // step 2 - create the fixed-length array
+        uint256 j = 0;
+        for (uint i = 0; i < project.listDevelopers.length; i++) {
+            result[j] = project.listDevelopers[i];  // step 3 - fill the array
+        }
+
+        return result; // step 4 - return
     }
 
     function getClients() public view returns (address[] memory) {
-        return clientList;
+        //https://stackoverflow.com/questions/60616895/solidity-returns-filtered-array-of-structs-without-push
+        uint256 resultCount = 0;
+        for (uint i = 0; i < clientList.length; i++) {
+            if (clientList[i] == msg.sender || projectManager == msg.sender) {
+                resultCount++;  // step 1 - determine the result count
+            }
+        }
+
+        address[] memory result = new address[](resultCount);  // step 2 - create the fixed-length array
+        uint256 j = 0;
+        for (uint i = 0; i < clientList.length; i++) {
+            if (clientList[i] == msg.sender || projectManager == msg.sender) {
+                result[j] = clientList[i];  // step 3 - fill the array
+                j++;
+            }
+        }
+
+        return result;
     }
 
     function getCancelFee() public view returns (uint256) {
