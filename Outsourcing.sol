@@ -35,7 +35,7 @@ contract Outsourcing {
     uint256 _cancel_fee = 5;
     uint256 _milestone_charge = 25;
     uint256 _margin = 20;
-    address constant private WETH = 0xDA0bab807633f07f013f94DD0E6A4F96F8742B53;
+    address constant private WETH = 0xd9145CCE52D386f254917e481eB44e9943F39138;
 
     enum Language { JAVA, PYTHON }
     enum JobStatus { 
@@ -101,11 +101,6 @@ contract Outsourcing {
     
     // modifier to check if caller is owner
     modifier isOwner() {
-        // If the first argument of 'require' evaluates to 'false', execution terminates and all
-        // changes to the state and to Ether balances are reverted.
-        // This used to consume all gas in old EVM versions, but not anymore.
-        // It is often a good idea to use 'require' to check if functions are called correctly.
-        // As a second argument, you can also provide an explanation about what went wrong.
         require(msg.sender == projectManager, "Caller is not owner");
         _;
     }
@@ -126,7 +121,7 @@ contract Outsourcing {
      * @dev Set contract deployer as owner
      */
     constructor() {
-        projectManager = msg.sender; // 'msg.sender' is sender of current call, contract deployer for a constructor
+        projectManager = msg.sender;
         rateJava = 40000000000000000;
         ratePython = 30000000000000000;
         emit OwnerSet(address(0), projectManager);
@@ -201,18 +196,12 @@ contract Outsourcing {
         emit RegisterClient(msg.sender, _name, _position, _company);
     }
 
-    //1a833da63a6b7e20098dae06d06602e1
-    //0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    // 0x19bFB4C85746bCaafC64d80c509409fDE7657b2f
-    // 0.01 ETH = 10000000000000000
-    // 0.1 ETH = 100000000000000000
     function signAgreement(address[] memory _developers, address client, string memory ticketId, string memory project_name, uint256 _mandays, uint256 budget, string memory _checksum) public isOwner {
         // Validate
         require(budget > 0);
         require(_developers.length > 0);
         require(ticket[ticketId].closed == false, "The project is now complete.");
         require(ticket[ticketId].budget == 0, "The ticket is already in use.");
-        //require(bytes(clients[client].company).length > 0, "The client has not yet been registered.");
         require(clients[client].registered, "The client has not yet been registered.");
 
         // Cal over budget developers
@@ -254,9 +243,6 @@ contract Outsourcing {
         emit SignAgreement(ticketId, project_name, budget, client, msg.sender, _developers);
     }
 
-    // 0x19bFB4C85746bCaafC64d80c509409fDE7657b2f
-    // 0.01 ETH = 10000000000000000
-    // 0.1 ETH = 100000000000000000
     function changeStatus(string memory ticketId, JobStatus _status) public {
         // require existing project
         require(ticket[ticketId].budget > 0, "The ticket does not exist.");
@@ -268,7 +254,6 @@ contract Outsourcing {
         uint256 mandays = data.mandays;
                 
         if (_status == JobStatus.APPROVED) {
-            // action role : Client
             require(currentStatus == JobStatus.SUBMITTED, "Invalid job status!");
             require(data.client == msg.sender, "Client only!!!");
 
@@ -282,7 +267,6 @@ contract Outsourcing {
         }
 
         if (_status == JobStatus.BUILD_AND_TEST) {
-            // action role : Client
             require(currentStatus == JobStatus.APPROVED, "Invalid job status!");
             require(data.developers[msg.sender] || msg.sender == projectManager , "PM or Dev only!!!");
         }
@@ -293,12 +277,10 @@ contract Outsourcing {
         }
 
         if (_status == JobStatus.COMPLETE_BUILD_AND_TEST) {
-            // action role : Project Manager
             require(currentStatus == JobStatus.PENDING_COMPLETE_BUILD_AND_TEST, "Invalid job status!");
         }
 
         if (_status == JobStatus.CLIENT_ACCEPT_BUILD_AND_TEST) {
-            // action role : Client
             require(currentStatus == JobStatus.COMPLETE_BUILD_AND_TEST, "Invalid job status!");
             require(data.client == msg.sender, "Client only!!!");
 
@@ -309,13 +291,11 @@ contract Outsourcing {
         }
 
         if (_status == JobStatus.PENDING_CLIENT_CONFIRM_UAT) {
-            // action role : DEV
             require(currentStatus == JobStatus.CLIENT_ACCEPT_BUILD_AND_TEST, "Invalid job status!");
             require(data.developers[msg.sender] || msg.sender == projectManager , "PM or Dev only!!!");
         }
 
         if (_status == JobStatus.CLIENT_ACCEPT_UAT_COMPLETE) {
-            // action role : Client
             require(currentStatus == JobStatus.PENDING_CLIENT_CONFIRM_UAT, "Invalid job status!");
             require(data.client == msg.sender, "Client only!!!");
 
@@ -326,31 +306,26 @@ contract Outsourcing {
         }
 
         if (_status == JobStatus.PENDING_IT_CONFIRM_DEPLOYMENT) {
-            // action role : DEV
             require(currentStatus == JobStatus.CLIENT_ACCEPT_UAT_COMPLETE, "Invalid job status!");
             require(data.developers[msg.sender] || msg.sender == projectManager , "PM or Dev only!!!");
         }
 
         if (_status == JobStatus.PENDING_CLIENT_CONFIRM_COMPLETED) {
-            // action role : CLIENT
             require(currentStatus == JobStatus.PENDING_IT_CONFIRM_DEPLOYMENT, "Invalid job status!");
             require(data.developers[msg.sender] || msg.sender == projectManager , "PM or Dev only!!!");
         }
 
         if (_status == JobStatus.PENDING_IT_CONFIRM_DEPLOYMENT) {
-            // action role : DEV
             require(currentStatus == JobStatus.CLIENT_ACCEPT_UAT_COMPLETE, "Invalid job status!");
             require(data.developers[msg.sender] || msg.sender == projectManager , "PM or Dev only!!!");
         }
 
         if (_status == JobStatus.PENDING_CLIENT_CONFIRM_COMPLETED) {
-            // action role : DEV
             require(currentStatus == JobStatus.PENDING_IT_CONFIRM_DEPLOYMENT, "Invalid job status!");
             require(data.developers[msg.sender] || msg.sender == projectManager , "PM or Dev only!!!");
         }
 
         if (_status == JobStatus.CLIENT_ACCEPT_DELIVERY_COMPLETE) {
-            // action role : Client
             require(currentStatus == JobStatus.PENDING_CLIENT_CONFIRM_COMPLETED, "Invalid job status!");
             require(data.client == msg.sender, "Client only!!!");
 
@@ -361,7 +336,6 @@ contract Outsourcing {
         }
 
         if (_status == JobStatus.COMPLETE) {
-            // action role : Project Manager
             require(currentStatus == JobStatus.CLIENT_ACCEPT_DELIVERY_COMPLETE, "Invalid job status!");
             require(msg.sender == projectManager, "Project manager only!!!");
 
@@ -374,16 +348,13 @@ contract Outsourcing {
 
                 // pay to developer
                 uint256 totalIncome = mandays * dev.rate / totalDeveloper;
-                //totalPayDev = totalPayDev + totalIncome;
                 
                 IERC20(WETH).transferFrom(msg.sender, dev.addr, totalIncome); 
             }
-            // set closed ticket
             data.closed = true;
         }
 
         if (currentStatus == JobStatus.SUBMITTED && _status == JobStatus.CANCEL) {
-            // action role : Client
             require(currentStatus < JobStatus.COMPLETE, "Invalid job status!");
             require(data.client == msg.sender || msg.sender == projectManager, "Invalid role!!!");
 
@@ -391,14 +362,11 @@ contract Outsourcing {
             for (uint i = 0; i < totalDeveloper; i++) {
                 Developer storage dev = developers[data.listDevelopers[i]];
 
-                // set available
                 dev.available = true;
             }
 
-            // set closed ticket
             data.closed = true;
         } else if (_status == JobStatus.CANCEL) {
-            // action role : Client
             require(currentStatus < JobStatus.COMPLETE, "Invalid job status!");
             require(data.client == msg.sender, "Client only!!!");
 
@@ -436,7 +404,6 @@ contract Outsourcing {
             // return currentBudget - fee from weth to client
             IERC20(WETH).transfer(msg.sender, returnClientBalance);
 
-            // set closed ticket
             data.closed = true;
         }
         
@@ -455,7 +422,6 @@ contract Outsourcing {
     }
 
     function getDevelopers() public view returns (address[] memory) {
-        //https://stackoverflow.com/questions/60616895/solidity-returns-filtered-array-of-structs-without-push
         uint256 resultCount = 0;
         for (uint i = 0; i < developerList.length; i++) {
             if (developerList[i] == msg.sender || projectManager == msg.sender) {
@@ -479,18 +445,17 @@ contract Outsourcing {
         require(ticket[ticketId].budget > 0, "The ticket does not exist.");
         Project storage project = ticket[ticketId];
 
-        //https://stackoverflow.com/questions/60616895/solidity-returns-filtered-array-of-structs-without-push
         address[] memory result = new address[](project.listDevelopers.length);  // step 2 - create the fixed-length array
         uint256 j = 0;
         for (uint i = 0; i < project.listDevelopers.length; i++) {
             result[j] = project.listDevelopers[i];  // step 3 - fill the array
+            j++;
         }
 
         return result; // step 4 - return
     }
 
     function getClients() public view returns (address[] memory) {
-        //https://stackoverflow.com/questions/60616895/solidity-returns-filtered-array-of-structs-without-push
         uint256 resultCount = 0;
         for (uint i = 0; i < clientList.length; i++) {
             if (clientList[i] == msg.sender || projectManager == msg.sender) {
